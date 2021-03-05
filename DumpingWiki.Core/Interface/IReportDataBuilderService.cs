@@ -7,6 +7,6 @@ namespace DumpingWiki.Core.Interface
     public interface IReportDataBuilderService
     {
         List<LanguajeDomainCount> BuildLanguageDomainReport(List<CompiledData> compiledData);
-        List<LanguajePageMaxViewCount> BuildPageCountReport(List<CompiledData> compiledData);
+        List<LanguajePageMaxCount> BuildPageCountReport(List<CompiledData> compiledData);
     }
 }

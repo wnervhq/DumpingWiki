@@ -28,7 +28,7 @@ namespace DumpingWiki.Core.Services
 
             foreach (var currentPeriod in currentPeriods)
             {
-                var languageDomainWithMaxCount = languageAndDomainCount.Where(x => x.GetPeriod() == currentPeriod).FirstOrDefault();
+                var languageDomainWithMaxCount = orderResultLanguajeDomain.Where(x => x.GetPeriod() == currentPeriod).FirstOrDefault();
 
                 filteredLanguageDomainCount.Add(languageDomainWithMaxCount);
             }
@@ -37,21 +37,31 @@ namespace DumpingWiki.Core.Services
             return filteredLanguageDomainCount;
         }
 
-        public List<LanguajePageMaxViewCount> BuildPageCountReport(List<CompiledData> compiledData)
+        public List<LanguajePageMaxCount> BuildPageCountReport(List<CompiledData> compiledData)
         {
             Console.WriteLine("Building Page Count Report - Start");
 
-            var page = (from a in compiledData
-                        group a by new { period = a.GetPeriod(), page = a.GetPageTitle() } into grouped
-                        select new LanguajePageMaxViewCount(grouped.Key.period, grouped.Key.page, grouped.Sum(x => x.GetViewCount()))).ToList();
+            var currentPeriods = compiledData.Select(x => x.GetPeriod()).Distinct();
 
-            var result = page.OrderBy(x => x.GetPeriod())
+            var languajePageMaxViewCount = (from a in compiledData
+                        group a by new { period = a.GetPeriod(), page = a.GetPageTitle() } into grouped
+                        select new LanguajePageMaxCount(grouped.Key.period, grouped.Key.page, grouped.Sum(x => x.GetViewCount()))).ToList();
+
+            var orderLanguajePage = languajePageMaxViewCount.OrderBy(x => x.GetPeriod())
                 .ThenByDescending(x => x.GetViewCount())
                 .ToList();
 
-            Console.WriteLine($"Building Page Count Report - End - {result.Count()} Rows");
+            var filteredLanguagePage = new List<LanguajePageMaxCount>();
 
-            return result;
+            foreach (var currentPeriod in currentPeriods)
+            {
+                var languagePageWithMaxCount = orderLanguajePage.Where(x => x.GetPeriod() == currentPeriod).FirstOrDefault();
+
+                filteredLanguagePage.Add(languagePageWithMaxCount);
+            }
+            Console.WriteLine($"Building Page Count Report - End - {filteredLanguagePage.Count()} Rows");
+
+            return filteredLanguagePage;
         }
     }
 }

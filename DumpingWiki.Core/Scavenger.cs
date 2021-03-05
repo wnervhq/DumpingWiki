@@ -30,18 +30,14 @@ namespace DumpingWiki.Core
             var source = BuildDumpSource();
 
             _fileService.Download(source);
-
             _fileService.DecompressFiles(source.GetDirectory());
             
             var compiledData = _dataService.Extract(source.GetDirectory());
-
             var languageReportData = _reportBuilder.BuildLanguageDomainReport(compiledData);
-
-            //var pageReportData = _reportBuilder.BuildPageCountReport(compiledData);
+            var pageReportData = _reportBuilder.BuildPageCountReport(compiledData);
 
             _reportService.ShowLanguageDomainReport(languageReportData);
-
-            //_reportService.ShowPageCountReport(pageReportData);
+            _reportService.ShowPageCountReport(pageReportData);
 
             Console.WriteLine("REACHED END OF PROGRAM");
 
@@ -50,9 +46,7 @@ namespace DumpingWiki.Core
         private DumpSource BuildDumpSource() 
         {
             var sourceLink = GetSourceLink();
-
             var listNames = GetFileNames(sourceLink);
-
             var directoryPath = GetTemporaryDirectory();
 
             return new DumpSource(sourceLink, listNames, directoryPath);

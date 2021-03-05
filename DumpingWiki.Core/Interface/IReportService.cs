@@ -6,6 +6,6 @@ namespace DumpingWiki.Core.Interface
     public interface IReportService
     {
         void ShowLanguageDomainReport(List<LanguajeDomainCount> list);
-        void ShowPageCountReport(List<LanguajePageMaxViewCount> list);
+        void ShowPageCountReport(List<LanguajePageMaxCount> list);
     }
 }
