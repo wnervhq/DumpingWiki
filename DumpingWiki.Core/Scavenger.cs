@@ -6,18 +6,75 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.IO;
-using System.IO.Compression;
-using System.Threading.Tasks;
-using DumpingWiki.Extensions;
 
 
 namespace DumpingWiki.Core
 {
     public class Scavenger : IReportScavenger
     {
+        private readonly IFileService _fileService;
+        private readonly IDataService _dataService;
+        private readonly IReportService _reportService;
+        private readonly IReportDataBuilderService _reportBuilder;
+
+        public Scavenger(IFileService fileService, IDataService dataService, IReportService reportService, IReportDataBuilderService reportBuilder) 
+        {
+            _fileService = fileService;
+            _dataService = dataService;
+            _reportService = reportService;
+            _reportBuilder = reportBuilder;
+        }
+
+        public void Process() 
+        {
+            var source = BuildDumpSource();
+
+            _fileService.Download(source);
+
+            _fileService.DecompressFiles(source.GetDirectory());
+            
+            var compiledData = _dataService.Extract(source.GetDirectory());
+
+            var languageReportData = _reportBuilder.BuildLanguageDomainReport(compiledData);
+
+            //var pageReportData = _reportBuilder.BuildPageCountReport(compiledData);
+
+            _reportService.ShowLanguageDomainReport(languageReportData);
+
+            //_reportService.ShowPageCountReport(pageReportData);
+
+            Console.WriteLine("REACHED END OF PROGRAM");
+
+        }
+
+        private DumpSource BuildDumpSource() 
+        {
+            var sourceLink = GetSourceLink();
+
+            var listNames = GetFileNames(sourceLink);
+
+            var directoryPath = GetTemporaryDirectory();
+
+            return new DumpSource(sourceLink, listNames, directoryPath);
+        }
+
+        private string GetTemporaryDirectory()
+        {
+            string tempDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(tempDirectory);
+            return tempDirectory;
+        }
+
+        private static string GetSourceLink()
+        {
+            var sMonth = DateTime.Now.ToString("MM");
+            var sYear = DateTime.Now.ToString("yyyy");
+            var linkWikiBase = "https://dumps.wikimedia.org/other/pageviews/";
+            return $"{linkWikiBase}{sYear}/{sYear}-{sMonth}/";
+        }
+
         public List<string> GetFileNames(string url)
         {
-            
             List<string> webItemsByLine = new List<string>();
             WebClient web = new WebClient();
             String htmlSource = web.DownloadString(url);
@@ -37,181 +94,5 @@ namespace DumpingWiki.Core
             return fileNames;
         }
 
-        public void GetDownloadedFile(DataFile file)
-        {
-            WebClient web = new WebClient();
-
-            Console.WriteLine(file.GetDirectory());
-
-            foreach (var fileName in file.GetFileNames() )
-            {
-                string sourseLink = file.GetSourceLink()+fileName;
-                string pathSave = file.GetDirectory()+"\\"+fileName;
-                web.DownloadFile(sourseLink, pathSave);
-                Console.WriteLine(fileName+" downloaded");
-            }
-
-            return ;
-
-        }
-        public void GetDataFile(string pathFiles)
-        {
-            DirectoryInfo directorySelected = new DirectoryInfo(pathFiles);
-                        
-            foreach (FileInfo fileToDecompress in directorySelected.GetFiles("*.gz"))
-            {
-                Decompress(fileToDecompress);
-                File.Delete(fileToDecompress.FullName);
-            }
-          return;
-        }
-
-        public List<CompiledData> GetReportData(string pathFiles)
-        {
-            Console.WriteLine("Performing File ReadAllLines into array. Process with Parallel.For: ");
-
-            char[] separator = { ' ' };
-            string separatorDomainCode = ".";
-            string separatorFileName = "-";
-            int viewCount = 0;
-            int responseSize = 0;
-            int found = 0;
-
-            var compiledList = new List<CompiledData>();
-
-            try
-            {
-                DirectoryInfo directorySelected = new DirectoryInfo(pathFiles);
-
-                foreach (FileInfo fileToRead in directorySelected.GetFiles("*.*"))
-                {
-
-                    var period = fileToRead.FullName.Split(separatorFileName);
-                    var allLines = File.ReadAllLines(fileToRead.FullName);
-                    Parallel.ForEach(allLines, (currentLine) =>
-                    {
-                        
-                        var periodHour = period[2].Substring(0, 2);
-
-                        string[] splitCurrentLine = currentLine.Split(separator);
-
-                        var domainCode = splitCurrentLine[0];
-                        var pageTitle = splitCurrentLine[1];
-                        viewCount = Convert.ToInt32(splitCurrentLine[2]);
-                        responseSize = Convert.ToInt32(splitCurrentLine[3]);
-                        string language = null;
-                        string domain = null;
-
-                        found = domainCode.IndexOf(separatorDomainCode);
-                        if (found < 0)
-                        {
-                            language = splitCurrentLine[0]; ;
-                            domain = "Wikipedia";
-                        }
-                        else
-                        {
-                            string[] splitDomainCode = domainCode.Split(separatorDomainCode);
-                            language = splitDomainCode.First();
-                            domain = splitDomainCode.Last();
-
-                            foreach (DomainData item in Domains.Get().Where(x => (x.GetCode() == domain)))
-                            {
-                                domain = item.GetName();
-                            }
-                        }
-                        var compiledData = new CompiledData(domainCode, language, domain, pageTitle, viewCount, responseSize,periodHour, currentLine);
-                        compiledList.Add(compiledData);
-                    });
-                }
-                
-            }
-            catch (Exception Ex)
-            {
-                Console.WriteLine(Ex);
-            }
-            Console.WriteLine("End readLines");
-
-            return compiledList;
-        }
-
-        public static void Decompress(FileInfo fileToDecompress)
-        {
-            using (FileStream originalFileStream = fileToDecompress.OpenRead())
-            {
-                string currentFileName = fileToDecompress.FullName;
-                string newFileName = currentFileName.Remove(currentFileName.Length - fileToDecompress.Extension.Length);
-
-                using (FileStream decompressedFileStream = File.Create(newFileName))
-                {
-                    using (GZipStream decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress))
-                    {
-                        decompressionStream.CopyTo(decompressedFileStream);
-                        Console.WriteLine("Decompressed: {0}", fileToDecompress.Name);
-                    }
-                }
-            }
-        }
-
-        public void GetReport (List<string> fileNames, List<CompiledData> compiledData)
-        {
-            var currentPeriods = new List<string>();
-
-            foreach (var name in fileNames )
-            {
-                var currentPeriod = name.Split('-');
-                currentPeriods.Add(currentPeriod[2].Substring(0,2));
-            }
-                
-
-            var languageAndDomainCount = (from a in compiledData
-                                  group a by new { period = a.GetPeriod(), languaje = a.GetLanguage(), domain = a.GetDomain() } into grouped
-                                  select new LanguajeDomainCount (grouped.Key.period, grouped.Key.languaje, grouped.Key.domain, grouped.Sum(x => x.GetViewCount()))
-                ).ToList();
-
-            var orderResultLanguajeDomain = languageAndDomainCount.OrderBy(x => x.GetPeriod())
-                .ThenByDescending(x => x.GetViewCount())
-                .ToList();
-
-            var filteredLanguageDomainCount = new List<LanguajeDomainCount>();
-
-            foreach (var currentPeriod in currentPeriods)
-                {
-                var languageDomainWithMaxCount = languageAndDomainCount.Where(x => x.GetPeriod() == currentPeriod).FirstOrDefault();
-
-                filteredLanguageDomainCount.Add(languageDomainWithMaxCount);
-            }
-
-            Console.WriteLine("List of Languaje&Domain");
-
-            foreach (var re in filteredLanguageDomainCount)
-            {
-                Console.WriteLine($"Period: {re.GetPeriod()}, Languaje: {re.GetLanguaje()}, " +
-                    $"domain: {re.GetDomain()}, viewCount: {re.GetViewCount()}");
-            }
-
-            var page = (from a in compiledData
-                        group a by new { period = a.GetPeriod(), page = a.GetPageTitle() } into grouped
-                        select new
-                        {
-                            period = grouped.Key.period,
-                            page = grouped.Key.page,
-                            viewcount = grouped.Sum(x => x.GetViewCount())
-                        }
-                ).ToList();
-
-            var orderResultPage = page.OrderBy(x => x.period)
-                .ThenByDescending(x => x.viewcount)
-                .ToList();
-
-            Console.WriteLine("List of Page");
-
-            foreach (var re in orderResultPage)
-            {
-                Console.WriteLine($"Period: {re.period}, Page: {re.page}, " +
-                    $"viewCount: {re.viewcount}");
-            }
-
-            return;
-        }
     }
 }

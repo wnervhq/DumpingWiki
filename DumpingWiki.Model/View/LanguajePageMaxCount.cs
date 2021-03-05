@@ -4,9 +4,9 @@ using System.Text;
 
 namespace DumpingWiki.Model.View
 {
-    public class LanguajePageMaxViewCount
+    public class LanguajePageMaxCount
     {
-        public LanguajePageMaxViewCount
+        public LanguajePageMaxCount
             (string period, string page, int viewCount)
         {
             Period = period;

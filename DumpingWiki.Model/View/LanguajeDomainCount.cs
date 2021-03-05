@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace DumpingWiki.Model
+namespace DumpingWiki.Model.View
 {
     public class LanguajeDomainCount
     {
